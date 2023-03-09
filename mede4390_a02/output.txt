@@ -1,0 +1,33 @@
+The output of: uname -a : is
+>>>>>>>>>>>>>>>
+Linux e0f4372da423 5.10.102.1-microsoft-standard-WSL2 #1 SMP Wed Mar 2 00:30:59 UTC 2022 x86_64 x86_64 x86_64 GNU/Linux
+<<<<<<<<<<<<<<<
+The output of: free -m : is
+>>>>>>>>>>>>>>>
+               total        used        free      shared  buff/cache   available
+Mem:           12711        1023       10361           1        1326       11434
+Swap:           4096           0        4096
+<<<<<<<<<<<<<<<
+The output of: ls -l -a -F : is
+>>>>>>>>>>>>>>>
+total 64
+drwxrwxrwx 1 root   root    4096 Feb  8 22:22 ./
+drwxr-xr-x 3 root   root    4096 Feb  3 16:08 ../
+-rwxr-xr-x 1 vscode vscode 19360 Feb  8 22:22 assignment_average*
+-rw-r--r-- 1 vscode vscode  2604 Feb  8 22:22 assignment_average.c
+drwxrwxrwx 1 root   root    4096 Feb  3 16:07 .devcontainer/
+-rw-r--r-- 1 vscode vscode   714 Feb  8 22:18 makefile
+-rwxr-xr-x 1 vscode vscode 22424 Feb  8 22:22 process_management*
+-rw-r--r-- 1 vscode vscode  5617 Feb  8 22:16 process_management.c
+-rw-r--r-- 1 vscode vscode   184 Feb  3 17:18 sample_in_grades.txt
+-rw-r--r-- 1 vscode vscode    39 Feb  7 20:37 sample_in_process.txt
+drwxr-xr-x 1 vscode vscode  4096 Feb  3 17:20 .vscode/
+<<<<<<<<<<<<<<<
+The output of: whoami : is
+>>>>>>>>>>>>>>>
+vscode
+<<<<<<<<<<<<<<<
+The output of: pwd : is
+>>>>>>>>>>>>>>>
+/workspaces/mede4390_a02
+<<<<<<<<<<<<<<<
