@@ -8,9 +8,12 @@
 #include <semaphore.h>
 #include <fcntl.h>
 
-sem_t *running;
-sem_t *even;
-sem_t *odd;
+sem_t running;
+sem_t even;
+sem_t odd;
+
+int remainingThreadsExist = 0;
+int initialLaunch = 1;
 
 void logStart(char *tID); //function to log that a new thread is started
 void logFinish(char *tID); //function to log that a thread has finished its time
@@ -41,10 +44,10 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	
-	running = sem_open("RUNNING", O_CREAT, 0666, 1);
-	even = sem_open("EVEN", O_CREAT, 0666, 1);
-	odd = sem_open("OPEN", O_CREAT, 0666, 1);
+	// Initialize semaphores
+	sem_init(&running, 0, 1);
+	sem_init(&even, 0, 0);
+	sem_init(&odd, 0, 0);
 
 	Thread *threads = NULL;
 	int threadCount = readFile(argv[1], &threads);
@@ -56,13 +59,41 @@ int main(int argc, char *argv[]) {
 
 		int i = 0;
 		while ((i = threadToStart(threads, threadCount)) > -1) {
-			//you can add some suitable code anywhere in this loop if required
+			// Runs before first thread starts to unlock the even or odd semaphore depending on if the first thread id is even or odd
+			if(initialLaunch){
+				int threadNumId = threads[i].tid[2];
+				if(threadNumId % 2 == 0){
+					sem_post(&even);
+				} else{
+					sem_post(&odd);
+				}
+				initialLaunch = 0;
+			}
 
+			//you can add some suitable code anywhere in this loop if required
 			threads[i].state = 1;
 			threads[i].retVal = pthread_create(&(threads[i].handle), NULL,
 					threadRun, &threads[i]);
 		}
+
+		// Check if all the threads have started to help prevent starvation
+		if(!remainingThreadsExist){
+			remainingThreadsExist = 1;
+			for (int i = 0; i < threadCount; i++){
+				// If any threads still need to be executed after started, change variable to be false which will unlock the even and odd semaphores
+				if (threads[i].state == 0){
+					remainingThreadsExist = 0;
+					break;
+				}
+					
+			}
+
+		}
 	}
+	// Destroy all semaphores when they are no longer needed
+	sem_destroy(&running);
+    sem_destroy(&odd);
+    sem_destroy(&even);
 	return 0;
 }
 
@@ -157,28 +188,45 @@ int threadToStart(Thread *threads, int threadCount) {
 void* threadRun(void *t) //implement this function in a suitable way
 {
 	logStart(((Thread*) t)->tid);
+	int threadNumId = atoi((((Thread*) t)->tid + 2));
 
-	// if even thread, wait even semaphore
-	// else, wait odd thread
-
-	// wait running thread
-//your synchronization logic will appear here
+	// Wait for even or odd semaphore based on if thread id is even or odd
+	if(!remainingThreadsExist){
+		if(threadNumId % 2 == 0){
+			sem_wait(&even);
+		} else{
+			sem_wait(&odd);
+		}
+	}
 	
-	char *yes[3] = ((Thread*) t)->tid+1;
-	printf("%s", *yes);
+	// Always wait for running to make 1 thread be in the critical section at a time
+	sem_wait(&running);
 
 	//critical section starts here
 	printf("[%ld] Thread %s is in its critical section\n", getCurrentTime(),
 			((Thread*) t)->tid);
 	//critical section ends here
 
-//your synchronization logic will appear here
-
-	// if even thread, release even semaphore
-	// else, release odd thread
-
-	// release running thread
-
+	if(!remainingThreadsExist){
+		// Unlock opposite semaphores so a waiting thread in the opposite type can enter the critical stage
+		if(threadNumId % 2 == 0){
+			sem_post(&odd);
+		} else{
+			sem_post(&even);
+		}
+	} else{ // If all threads have started, unlock the even and odd semaphore
+		int semValue = -1;
+		sem_getvalue(&odd, &semValue);
+		if(semValue == 0){
+			sem_post(&odd);
+		}
+		sem_getvalue(&even, &semValue);
+		if(semValue == 0){
+			sem_post(&even);
+		}
+	}
+	sem_post(&running);
+	
 	logFinish(((Thread*) t)->tid);
 	((Thread*) t)->state = -1;
 	pthread_exit(0);
