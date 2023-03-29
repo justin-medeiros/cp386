@@ -54,7 +54,6 @@ int is_empty(StackNode *top) {
 // Thread's push function
 void* thread_push(void *args)
 {
-	int i;
     int *threadId = (int *)args;
     push(*threadId + 1,&top);
     // Will unlock the mutex after the thread is finished executing push to invite the next thread to begin executing
@@ -72,7 +71,6 @@ void* thread_pop(){
 int main(void)
 {
     pthread_mutex_init(&lock, NULL);
-    StackNode *top = NULL;
     pthread_t threads_push[NUM_THREADS];
     pthread_t threads_pop[NUM_THREADS];
     int thread_args[NUM_THREADS];
