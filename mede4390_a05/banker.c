@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pthread.h>
 
 #define BUFFER_SIZE 255
 #define NUM_THREADS 5
@@ -14,26 +15,57 @@ int availableResources[NUM_RESOURCES];
 int needResources[NUM_THREADS][NUM_RESOURCES];
 int allocationResources[NUM_THREADS][NUM_RESOURCES];
 
-int safetyAlg(int needVector[][NUM_RESOURCES], int work[], int row){
-    // Initialize safety values
-    int finish[NUM_RESOURCES] = {0, 0, 0, 0};
-
-    for(int i = 0; i < NUM_RESOURCES; i++){
-        finish[i] = 0;
-        // printf("NEED: %d\n", needVector[row][i]);
-        // printf("WORK: %d\n", work[i]);
-        if(needVector[row][i] <= work[i]){
-            finish[i] = 1;
-        } else{
-            break;
-        }
-    }
-
-    for(int j = 0; j < NUM_RESOURCES; j++){
-        if(finish[j] == 0){
+// Helper function to check if a thread can be run safely
+int canRunSafely(int thread, int work[]) {
+    for (int i = 0; i < NUM_RESOURCES; i++) {
+        if (needResources[thread][i] > work[i]) {
             return 0;
         }
     }
+    // Thread can be run safely
+    return 1;
+}
+
+int safetyAlg(int sequence[]) {
+    // Initialize safety values
+    int finish[NUM_THREADS] = {0};
+    int work[NUM_RESOURCES];
+    memcpy(work, availableResources, sizeof(availableResources));
+    int seqCount = 0;
+
+    // Iterate until all threads are finished or there is no more possible thread to run
+    int possibleThreadFound = 1;
+    while (possibleThreadFound) {
+        possibleThreadFound = 0;
+
+        // Check all threads
+        for (int i = 0; i < NUM_THREADS; i++) {
+            // If the thread is not finished and can be run safely
+            if (finish[i] == 0 && canRunSafely(i, work)) {
+                finish[i] = 1;
+                // Add the thread to the sequence
+                if (sequence != NULL) {
+                    sequence[seqCount++] = i;
+                }
+                // Update the work array
+                for (int j = 0; j < NUM_RESOURCES; j++) {
+                    work[j] += allocationResources[i][j];
+                }
+                possibleThreadFound = 1;
+            }
+        }
+    }
+
+    // Check if all threads finished
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (finish[i] == 0) {
+            if (sequence != NULL) {
+                sequence = NULL;
+            }
+            return 0;
+        }
+    }
+
     return 1;
 }
 
@@ -63,7 +95,7 @@ char *requestResources(int request[]){
     }
 
     // Check safety algorithm if we can actually allocate those resources
-    if(safetyAlg(needResources, availableResources, curRow) == 1){
+    if(safetyAlg(NULL) == 1){
         memcpy(availableResources, tempAvailableResources, sizeof(tempAvailableResources));
         memcpy(needResources, tempNeedResources, sizeof(tempNeedResources));
         memcpy(allocationResources, tempAllocationResources, sizeof(tempAllocationResources));
@@ -92,6 +124,93 @@ char *releaseResources(int request[]){
     }
     return "The resources have been released successfully";
 }
+
+void* runThread(void* sequencePtr){
+    // Will print all required output from the thread
+    int sequenceNumber = *((int*) sequencePtr); 
+	printf("--> Customer/Thread %d\n", sequenceNumber);
+	printf("    Allocated resources:  ");
+    for(int i = 0; i<NUM_RESOURCES;i++){
+        if(i == NUM_RESOURCES-1){
+            printf("%d\n",allocationResources[sequenceNumber][i]);
+        } else{
+             printf("%d ",allocationResources[sequenceNumber][i]);
+        }
+    }
+	printf("    Needed: ");
+    for(int i = 0; i<NUM_RESOURCES;i++){
+        if(i == NUM_RESOURCES-1){
+            printf("%d\n",needResources[sequenceNumber][i]);
+        } else{
+             printf("%d ",needResources[sequenceNumber][i]);
+        }
+    }
+    printf("    Available:  ");
+    for(int i = 0; i<NUM_RESOURCES;i++){
+        if(i == NUM_RESOURCES-1){
+            printf("%d\n",availableResources[i]);
+        } else{
+             printf("%d ",availableResources[i]);
+        }
+    }
+
+	printf("    Thread has started\n");
+    // Allocate all neccessary resources
+    int tempNeedResource[5];
+    tempNeedResource[0] = sequenceNumber;
+    for (int i = 0; i<NUM_RESOURCES; i++){
+        tempNeedResource[i+1] = needResources[sequenceNumber][i];
+    }
+    requestResources(tempNeedResource);
+	printf("    Thread has finished\n");
+	printf("    Thread is releasing resources\n");
+    // Release all neccessary resources
+    int tempAllocationResource[5];
+    tempAllocationResource[0] = sequenceNumber;
+    for (int i = 0; i<NUM_RESOURCES; i++){
+        tempAllocationResource[i+1] = allocationResources[sequenceNumber][i];
+    }
+    releaseResources(tempAllocationResource);
+	printf("    New Available:  ");
+    for (int i = 0; i < NUM_RESOURCES; i++)
+    {
+        if(i == NUM_RESOURCES-1){
+            printf("%d\n",availableResources[i]);
+        } else{
+             printf("%d ",availableResources[i]);
+        }
+    }
+    
+    return NULL;
+}
+
+void runResources(){
+    int sequence[NUM_THREADS];
+    if(safetyAlg(sequence)){
+        printf("Safe Sequence is: ");
+        for(int i = 0; i<NUM_THREADS;i++){
+            if(i == NUM_THREADS-1){
+                printf("%d\n",sequence[i]);
+            } else{
+                printf("%d ",sequence[i]);
+            }
+        }
+        // Create and run threads for each sequence
+        for(int i = 0; i<NUM_THREADS;i++){
+            pthread_t tid;
+            pthread_attr_t attr;
+            pthread_attr_init(&attr); 
+            pthread_create(&tid, &attr, runThread, (void*) &sequence[i]);
+
+            pthread_join(tid, NULL);
+        }
+    } else{
+        printf("There is no safe sequence\n");
+    }
+    
+
+}
+
 void printAvailableResources(){
     for(int i = 0; i< NUM_RESOURCES; i++){
         if(i == NUM_RESOURCES-1){
@@ -132,11 +251,10 @@ int main(int argc, char ** argv){
     // Read every character in the file
     while(read(fd, &ch, sizeof(char)) > 0){
         
-        // Get the grade from the file and store in the buffer
+        // Get the number from the file and store in the buffer
         if(ch != ',' && ch != '\n'){
             buffer[bufferIndex++] = ch;
         } else{
-            // When there is a number in the line store in buffer
             if(bufferIndex > 0){ 
                 buffer[bufferIndex] = '\0';
                 maximumResources[r][c] = atoi(buffer);
@@ -158,9 +276,9 @@ int main(int argc, char ** argv){
         buffer[bufferIndex] = '\0';
         maximumResources[r][c] = atoi(buffer);
         allocationResources[r][c] = 0;
+        needResources[r][c] = maximumResources[r][c] - allocationResources[r][c];
     }
 
-    // Output
     printf("Number of Customers: %ld\n", sizeof(maximumResources)/sizeof(maximumResources[0]));
     printf("Currently Available resources: ");
     // Store available resources
@@ -214,7 +332,7 @@ int main(int argc, char ** argv){
         } else if(strstr(command, "RL") != NULL){
             printf("%s\n", releaseResources(request));
         } else if(strstr(command, "Run") != NULL){
-            printf("RUN"); 
+            runResources(); 
         } else if(strstr(command, "Exit") != NULL){
             printf("Program Complete\n");
             break;
